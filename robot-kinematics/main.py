@@ -5,7 +5,9 @@ import math
 import numpy as np
 
 # Create arm instance
-arm = TwoJointArm(25, 6)
+elbow_length = 25
+wrist_length = 6
+arm = TwoJointArm(elbow_length, wrist_length)
 
 # Tooltip position (x, y)
 x = 30
