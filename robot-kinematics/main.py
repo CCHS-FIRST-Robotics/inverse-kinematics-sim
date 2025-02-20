@@ -1,8 +1,8 @@
 from TwoJointArm import TwoJointArm
 from Translation2d import Translation2d
 import matplotlib.pyplot as plt
+import matplotlib.widgets as widgets
 import math
-import numpy as np
 
 # Create arm instance
 elbow_length = 25
@@ -10,8 +10,8 @@ wrist_length = 6
 arm = TwoJointArm(elbow_length, wrist_length)
 
 # Tooltip position (x, y)
-x = 5
-y = 20
+x = 20
+y = 72
 
 # Define elevator height bounds
 ELEVATOR_MIN = 47
@@ -20,10 +20,21 @@ ELEVATOR_MAX = 91
 # Get all possible solutions
 solutions = arm.calculate_angles(Translation2d(x, y), ELEVATOR_MIN, ELEVATOR_MAX)
 
-# Set up plot
-fig, ax = plt.subplots(figsize=(8, 8))
+# If no solutions found, exit
+if not solutions:
+    print("NO SOLUTIONS")
+    exit()
 
-def plot_arm(ax, q1, q2, elevator_height, label):
+# Track the current solution index
+current_index = 0
+
+# Set up two figures
+fig_all, ax_all = plt.subplots(figsize=(8, 8))  # All solutions
+fig_one, ax_one = plt.subplots(figsize=(8, 8))  # Single selected solution
+
+# Function to plot an arm
+def plot_arm(ax, q1, q2, elevator_height, color="blue", highlight=False):
+    """Plots the arm at given angles and elevator height."""
     base_x = 0
     base_y = elevator_height
 
@@ -32,38 +43,69 @@ def plot_arm(ax, q1, q2, elevator_height, label):
     wrist_x = elbow_x + math.cos(q1 + q2) * arm.wrist_length
     wrist_y = elbow_y + math.sin(q1 + q2) * arm.wrist_length
 
+    if highlight:
+        lw = 6  # Make highlighted solution thicker
+        arm_color = "orange"  # Stand-out color
+    else:
+        lw = 1
+        arm_color = color
+
     # Plot arm segments
-    ax.plot([base_x, elbow_x], [base_y, elbow_y], color="blue", linewidth=2, label=f"{label} (Upper Arm)")
-    ax.plot([elbow_x, wrist_x], [elbow_y, wrist_y], color="red", linewidth=2, label=f"{label} (Forearm)")
+    ax.plot([base_x, elbow_x], [base_y, elbow_y], color=arm_color, linewidth=lw)
+    ax.plot([elbow_x, wrist_x], [elbow_y, wrist_y], color="red" if highlight else "blue", linewidth=lw)
 
-    # Plot elevator height
-    ax.plot([base_x, base_x], [0, base_y], color="green", linestyle="--", label=f'Elevator {elevator_height}')
+    # Elevator line
+    ax.plot([base_x, base_x], [0, base_y], color="green", linestyle="--", linewidth=2 if highlight else 1)
 
-    # **🟣 Add an opaque dot (purple) for the expected end-effector position**
-    ax.scatter([x], [y], color="purple", s=120, alpha=0.8, edgecolors="black", label="Expected Position")
+    # Bigger dot for highlighted end-effector
+    dot_size = 200 if highlight else 80
+    ax.scatter([wrist_x], [wrist_y], color="purple", s=dot_size, alpha=0.8, edgecolors="black")
 
-    # Convert angles to degrees
-    q1_deg = round(math.degrees(q1), 2) % 360  
-    q2_deg = round(math.degrees(q2), 2) % 360  
-
-    print(f"Elevator Height {elevator_height} -> q1: {q1_deg:.2f}°, q2: {q2_deg:.2f}°")
-    print(f"Expected End-Effector: ({x}, {y})")
-    print(f"Calculated End-Effector: ({wrist_x:.2f}, {wrist_y:.2f})\n")
+    return wrist_x, wrist_y
 
 
-# Plot all solutions
-if len(solutions)== 0:
-    print("NO SOLUTIONS")
-    exit()
-for i, (q1, q2, elevator_height) in enumerate(solutions):
-    plot_arm(ax, q1, q2, elevator_height, label=f"Sol {i+1}")
+# Function to update both figures
+def update_plots():
+    """Updates both figures when switching solutions."""
+    global current_index
+    ax_all.clear()
+    ax_one.clear()
 
+    # Plot all solutions but highlight the selected one
+    for i, (q1, q2, elevator_height) in enumerate(solutions):
+        highlight = i == current_index
+        plot_arm(ax_all, q1, q2, elevator_height, color="black", highlight=highlight)
 
-# Set plot limits
-ax.set_xlim(-50, 50)
-ax.set_ylim(0, 100)
-ax.set_xlabel("X Position")
-ax.set_ylabel("Y Position")
-ax.set_title("All Possible Arm Solutions")
-ax.legend()
+    # Expected point
+    ax_all.scatter([x], [y], color="purple", s=100, alpha=0.8, edgecolors="black")
+    ax_all.set_title("All Possible Solutions")
+    ax_all.set_xlim(-50, 50)
+    ax_all.set_ylim(0, 100)
+
+    # Plot only the selected solution
+    q1, q2, elevator_height = solutions[current_index]
+    plot_arm(ax_one, q1, q2, elevator_height, color="black", highlight=True)
+    ax_one.scatter([x], [y], color="purple", s=200, alpha=0.8, edgecolors="black")
+    ax_one.set_title(f"Selected Solution {current_index+1}")
+    ax_one.set_xlim(-50, 50)
+    ax_one.set_ylim(0, 100)
+
+    # Refresh plots
+    fig_all.canvas.draw()
+    fig_one.canvas.draw()
+
+# Initial plot setup
+update_plots()
+
+# Button callback function
+def next_solution(event):
+    """Switch to the next solution."""
+    global current_index
+    current_index = (current_index + 1) % len(solutions)
+    update_plots()
+
+button_ax = fig_one.add_axes([0.75, 0.02, 0.15, 0.05])  
+button = widgets.Button(button_ax, "Next Solution")
+button.on_clicked(next_solution)
+
 plt.show()
