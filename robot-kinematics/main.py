@@ -11,7 +11,7 @@ arm = TwoJointArm(elbow_length, wrist_length)
 
 # Tooltip position (x, y)
 x = 10
-y = 110
+y = 30
 
 # Define elevator height bounds
 ELEVATOR_MIN = 47
@@ -63,11 +63,11 @@ def update_plots():
 
     ax_all.set_title("All Solutions")
     ax_all.set_xlim(-x - 20 , x + 20)
-    ax_all.set_ylim(0, y + 20)
+    ax_all.set_ylim(0, y + 40)
 
     ax_one.set_title(f"Selected Solution {current_index+1}")
     ax_one.set_xlim(-x - 20, x + 20)
-    ax_one.set_ylim(0, y + 20 )
+    ax_one.set_ylim(0, y + 40)
 
     fig.canvas.draw()
 
