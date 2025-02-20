@@ -7,52 +7,38 @@ class TwoJointArm:
         self.elbow_length = elbow_length
         self.wrist_length = wrist_length
 
-    def calculate_angles(self, tooltip_position: Translation2d) -> List[List[float]]:
+    def calculate_angles(self, tooltip_position: Translation2d, elevator_min: int, elevator_max: int) -> List[List[float]]:
         x, y = tooltip_position.x, tooltip_position.y
-        elevator_height = y  # Keep track of height
+        solutions = []
 
-        # ✅ Adjust Y to include elevator height
-        adjusted_y = y - elevator_height  
+        for elevator_height in range(elevator_min, elevator_max + 1):
+            adjusted_y = y - elevator_height
+            r = math.sqrt(x**2 + adjusted_y**2)
 
-        # Compute r (distance from base)
-        r = math.sqrt(x**2 + adjusted_y**2)
+            if r > self.elbow_length + self.wrist_length or r < abs(self.elbow_length - self.wrist_length):
+                continue  # Skip unreachable positions
 
-        print(f"Target Position: ({x}, {y})")
-        print(f"Computed Distance (r): {r}")
-        print(f"Reachable Range: {abs(self.elbow_length - self.wrist_length)} to {self.elbow_length + self.wrist_length}")
+            cos_q2 = (r**2 - self.elbow_length**2 - self.wrist_length**2) / (2 * self.elbow_length * self.wrist_length)
+            cos_q2 = max(-1, min(1, cos_q2))  # Clamp to avoid math errors
+            q2 = math.acos(cos_q2)
+            q2_neg = -q2
 
-        # Check reachability
-        if r > self.elbow_length + self.wrist_length or r < abs(self.elbow_length - self.wrist_length):
-            print("ERROR: Target out of reach")
-            return []  # No valid solutions
+            for q2_val in [q2, q2_neg]:  # Try both solutions
+                k1 = self.elbow_length + self.wrist_length * math.cos(q2_val)
+                k2 = self.wrist_length * math.sin(q2_val)
+                q1 = math.atan2(adjusted_y, x) - math.atan2(k2, k1)
 
-        ## POSITIVE SOLUTION ##
-        cos_q2 = (r**2 - self.elbow_length**2 - self.wrist_length**2) / (2 * self.elbow_length * self.wrist_length)
-        
-        # ✅ Clamp `cos_q2` to avoid math domain errors
-        cos_q2 = max(-1, min(1, cos_q2))
-        
-        if cos_q2 < -1 or cos_q2 > 1:
-            print("ERROR: cos_q2 out of range. No solution.")
-            return []
-
-        q2 = math.acos(cos_q2)  # Wrist joint angle
-
-        # Calculate q1
-        k1 = self.elbow_length + self.wrist_length * math.cos(q2)
-        k2 = self.wrist_length * math.sin(q2)
-        q1 = math.atan2(adjusted_y, x) - math.atan2(k2, k1)
-
-        # Store the solution
-        solutions = [[q1, q2, elevator_height]]
-
-        ## NEGATIVE SOLUTION ##
-        q2_neg = -q2  # Flip wrist angle
-
-        k1_neg = self.elbow_length + self.wrist_length * math.cos(q2_neg)
-        k2_neg = self.wrist_length * math.sin(q2_neg)
-        q1_neg = math.atan2(adjusted_y, x) - math.atan2(k2_neg, k1_neg)
-
-        solutions.append([q1_neg, q2_neg, elevator_height])
+                # Run FK to verify correctness
+                if self.forward_kinematics(q1, q2_val, elevator_height) == (x, y):
+                    solutions.append([q1, q2_val, elevator_height])
 
         return solutions
+
+    def forward_kinematics(self, q1, q2, elevator_height):
+        """ Compute (x, y) position given joint angles and elevator height """
+        elbow_x = math.cos(q1) * self.elbow_length
+        elbow_y = elevator_height + math.sin(q1) * self.elbow_length
+        wrist_x = elbow_x + math.cos(q1 + q2) * self.wrist_length
+        wrist_y = elbow_y + math.sin(q1 + q2) * self.wrist_length
+
+        return round(wrist_x, 2), round(wrist_y, 2)  # Round to avoid floating-point issues
